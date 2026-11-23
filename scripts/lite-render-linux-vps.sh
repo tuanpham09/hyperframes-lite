@@ -51,17 +51,26 @@ if grep -q -- "--experimental-fast-capture" <<<"$HELP" && ! has_flag "--experime
 fi
 
 LOW_MEMORY="${HF_LITE_LOW_MEMORY_MODE:-auto}"
+AVAILABLE_BYTES=""
+# Prefer the container's actual headroom: memory.max - memory.current.
+CGROUP_LIMIT="$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)"
+CGROUP_CURRENT="$(cat /sys/fs/cgroup/memory.current 2>/dev/null || true)"
+if [[ "$CGROUP_LIMIT" =~ ^[0-9]+$ && "$CGROUP_CURRENT" =~ ^[0-9]+$ ]] && (( CGROUP_LIMIT > CGROUP_CURRENT )); then
+  AVAILABLE_BYTES=$((CGROUP_LIMIT - CGROUP_CURRENT))
+else
+  AVAILABLE_KB="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  if [[ "$AVAILABLE_KB" =~ ^[0-9]+$ ]] && (( AVAILABLE_KB > 0 )); then
+    AVAILABLE_BYTES=$((AVAILABLE_KB * 1024))
+  fi
+fi
+
 if [[ "$LOW_MEMORY" == "auto" ]]; then
-  LIMIT_BYTES="$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)"
-  if [[ "$LIMIT_BYTES" =~ ^[0-9]+$ ]]; then
-    (( LIMIT_BYTES <= 8589934592 )) && LOW_MEMORY=true || LOW_MEMORY=false
+  # With about 4 GB normally available on this 6-GB VPS, use the safer
+  # capture route at <= 4.5 GiB of remaining headroom.
+  if [[ "$AVAILABLE_BYTES" =~ ^[0-9]+$ ]] && (( AVAILABLE_BYTES <= 4831838208 )); then
+    LOW_MEMORY=true
   else
-    AVAILABLE_KB="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
-    if [[ "$AVAILABLE_KB" =~ ^[0-9]+$ ]] && (( AVAILABLE_KB <= 8388608 )); then
-      LOW_MEMORY=true
-    else
-      LOW_MEMORY=false
-    fi
+    LOW_MEMORY=false
   fi
 fi
 
@@ -82,5 +91,7 @@ esac
 
 echo "[hyperframes-lite] CPU budget target: ${HF_LITE_CPU_BUDGET:-1.5} vCPU"
 echo "[hyperframes-lite] workers: $WORKERS (unless explicitly overridden)"
+echo "[hyperframes-lite] available memory estimate: ${AVAILABLE_BYTES:-unknown} bytes"
+echo "[hyperframes-lite] low-memory mode: $LOW_MEMORY"
 echo "[hyperframes-lite] quality/FPS/resolution: inherited unchanged"
 exec "${CLI[@]}" render "${ARGS[@]}"
