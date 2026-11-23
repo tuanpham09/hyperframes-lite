@@ -14,9 +14,11 @@ EOF
 
 if [[ "\${1:-}" == "--help" || "\${1:-}" == "-h" ]]; then usage; exit 0; fi
 
-CLI=(bun run --filter hyperframes cli)
+CLI=()
 if [[ -x "node_modules/.bin/hyperframes" ]]; then
   CLI=("./node_modules/.bin/hyperframes")
+elif [[ -f "packages/cli/bin/hyperframes.mjs" && -f "packages/cli/dist/cli.js" ]]; then
+  CLI=(node packages/cli/bin/hyperframes.mjs)
 elif command -v hyperframes >/dev/null 2>&1; then
   CLI=(hyperframes)
 elif command -v npx >/dev/null 2>&1; then
