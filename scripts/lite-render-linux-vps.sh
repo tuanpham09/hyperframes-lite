@@ -12,7 +12,7 @@ Run from the HyperFrames composition directory containing index.html.
 EOF
 }
 
-if [[ "\${1:-}" == "--help" || "\${1:-}" == "-h" ]]; then usage; exit 0; fi
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then usage; exit 0; fi
 
 CLI=()
 if [[ -x "node_modules/.bin/hyperframes" ]]; then
@@ -33,15 +33,15 @@ if [[ ! -f "index.html" ]]; then
   exit 2
 fi
 
-HELP="$("\${CLI[@]}" render --help 2>&1 || true)"
+HELP="$("${CLI[@]}" render --help 2>&1 || true)"
 ARGS=("$@")
 
 has_flag() {
   local flag="$1"
-  [[ " \${ARGS[*]} " == *" \${flag} "* ]]
+  [[ " ${ARGS[*]} " == *" ${flag} "* ]]
 }
 
-WORKERS="\${HF_LITE_WORKERS:-1}"
+WORKERS="${HF_LITE_WORKERS:-1}"
 if ! has_flag "--workers" && ! has_flag "-w"; then
   ARGS+=(--workers "$WORKERS")
 fi
@@ -50,7 +50,7 @@ if grep -q -- "--experimental-fast-capture" <<<"$HELP" && ! has_flag "--experime
   ARGS+=(--experimental-fast-capture)
 fi
 
-LOW_MEMORY="\${HF_LITE_LOW_MEMORY_MODE:-auto}"
+LOW_MEMORY="${HF_LITE_LOW_MEMORY_MODE:-auto}"
 if [[ "$LOW_MEMORY" == "auto" ]]; then
   LIMIT_BYTES="$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)"
   if [[ "$LIMIT_BYTES" =~ ^[0-9]+$ ]]; then
@@ -80,7 +80,7 @@ case "$LOW_MEMORY" in
     ;;
 esac
 
-echo "[hyperframes-lite] CPU budget target: \${HF_LITE_CPU_BUDGET:-1.5} vCPU"
+echo "[hyperframes-lite] CPU budget target: ${HF_LITE_CPU_BUDGET:-1.5} vCPU"
 echo "[hyperframes-lite] workers: $WORKERS (unless explicitly overridden)"
 echo "[hyperframes-lite] quality/FPS/resolution: inherited unchanged"
-exec "\${CLI[@]}" render "\${ARGS[@]}"
+exec "${CLI[@]}" render "${ARGS[@]}"
