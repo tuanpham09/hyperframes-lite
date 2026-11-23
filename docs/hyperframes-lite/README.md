@@ -50,7 +50,7 @@ python3 /path/to/hyperframes-lite/tools/lite-benchmark.py \
 
 ## Memory policy
 
-The wrapper reads cgroup v2 memory limits before falling back to host memory information. It explicitly exports `PRODUCER_LOW_MEMORY_MODE`, because a container's host-visible RAM can differ from its actual memory limit.
+The wrapper estimates available headroom as cgroup v2 `memory.max - memory.current`, falling back to `MemAvailable`. It explicitly exports `PRODUCER_LOW_MEMORY_MODE`, because a container's host-visible RAM can differ from its actual memory limit. The current 6-GB VPS profile enters Low Memory Mode at 4.5 GiB or less of available headroom; with roughly 4 GB normally available, it will choose the safer route by default.
 
 - `HF_LITE_LOW_MEMORY_MODE=auto`: choose a conservative mode based on the visible memory limit.
 - `HF_LITE_LOW_MEMORY_MODE=true`: force Low Memory Mode.
