@@ -1,0 +1,36 @@
+name: HyperFrames Lite checks
+
+on:
+  push:
+    branches: ["main", "perf/**"]
+    paths:
+      - "scripts/lite-*.sh"
+      - "tools/lite-*.py"
+      - "profiles/**"
+      - "docs/hyperframes-lite/**"
+      - ".github/workflows/hyperframes-lite-ci.yml"
+  pull_request:
+    paths:
+      - "scripts/lite-*.sh"
+      - "tools/lite-*.py"
+      - "profiles/**"
+      - "docs/hyperframes-lite/**"
+      - ".github/workflows/hyperframes-lite-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate shell scripts
+        run: bash -n scripts/lite-render-linux-vps.sh scripts/lite-doctor-linux.sh
+      - name: Validate Python benchmark
+        run: python -m py_compile tools/lite-benchmark.py
+      - name: Validate CLI wrapper help
+        run: bash scripts/lite-render-linux-vps.sh --help
