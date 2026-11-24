@@ -134,4 +134,44 @@ describe("RenderExecutionContext", () => {
     expect(() => context.assertActive()).toThrow("render_cancelled");
     await context.dispose();
   });
+  it("reports cleanup timings and remaining active resources when profiling is enabled", async () => {
+    vi.stubEnv("HF_RENDER_LIFECYCLE_PROFILE", "1");
+    const resources = vi
+      .spyOn(process, "getActiveResourcesInfo")
+      .mockReturnValue(["Timeout", "PipeWrap", "Timeout"]);
+    const base = logger();
+    const context = new RenderExecutionContext({
+      request: { renderJobId: "job-1", projectDir: "/project", outputPath: "/out.mp4" },
+      logger: base,
+    });
+    context.defer("close test resource", () => undefined);
+
+    await context.dispose();
+
+    expect(base.info).toHaveBeenCalledWith(
+      "[Render lifecycle] cleanup summary",
+      expect.objectContaining({
+        activeResourceCount: 3,
+        activeResources: { Timeout: 2, PipeWrap: 1 },
+        cleanupSteps: [expect.objectContaining({ label: "close test resource" })],
+      }),
+    );
+    resources.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("continues disposing resources when progress flush rejects", async () => {
+    const base = logger();
+    const disposed: string[] = [];
+    const context = new RenderExecutionContext({
+      request: { renderJobId: "job-1", projectDir: "/project", outputPath: "/out.mp4" },
+      logger: base,
+    });
+    context.defer("close resource", () => disposed.push("closed"));
+    vi.spyOn(context.events, "flush").mockRejectedValue(new Error("progress sink failed"));
+
+    await expect(context.dispose()).rejects.toThrow("progress sink failed");
+    expect(disposed).toEqual(["closed"]);
+  });
+
 });

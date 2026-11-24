@@ -142,6 +142,43 @@ describe("ENCODER_PRESETS", () => {
   });
 });
 
+
+describe("getEncoderPreset x264 benchmark override", () => {
+  it.each(["medium", "fast", "faster", "veryfast", "ultrafast"])(
+    "uses the explicit %s preset for SDR MP4 without changing CRF",
+    (override) => {
+      expect(getEncoderPreset("standard", "mp4", undefined, "4444", "420", override)).toMatchObject({
+        preset: override,
+        quality: ENCODER_PRESETS.standard.quality,
+        codec: "h264",
+        pixelFormat: "yuv420p",
+      });
+    },
+  );
+
+  it("rejects unsupported values instead of silently falling back", () => {
+    expect(() =>
+      getEncoderPreset("standard", "mp4", undefined, "4444", "420", "placebo"),
+    ).toThrow(/HF_X264_PRESET must be one of/);
+  });
+
+  it("does not apply the H.264 override to HDR, WebM, or ProRes", () => {
+    expect(getEncoderPreset("standard", "mp4", { transfer: "pq" }, "4444", "420", "fast").codec).toBe(
+      "h265",
+    );
+    expect(getEncoderPreset("standard", "webm", undefined, "4444", "420", "fast").codec).toBe(
+      "vp9",
+    );
+    expect(getEncoderPreset("standard", "mov", undefined, "4444", "420", "fast").codec).toBe(
+      "prores",
+    );
+  });
+
+  it("keeps the default quality mapping when no override is supplied", () => {
+    expect(getEncoderPreset("standard", "mp4").preset).toBe("medium");
+  });
+});
+
 describe("encodeFramesFromDir ffmpegEncodeTimeout", () => {
   it("kills ffmpeg when config timeout elapses", async () => {
     vi.useFakeTimers();

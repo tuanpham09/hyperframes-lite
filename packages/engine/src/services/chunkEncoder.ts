@@ -166,12 +166,20 @@ export function isProresProfile(value: unknown): value is ProresProfile {
  * WebM uses VP9 with alpha-capable pixel format; MP4 uses h264 (or h265 for HDR);
  * MOV uses ProRes 4444 with alpha for editor-compatible transparency, or a 422 profile without alpha.
  */
+const X264_BENCH_PRESETS = ["medium", "fast", "faster", "veryfast", "ultrafast"] as const;
+
+/**
+ * Resolve the quality preset, with a deliberately opt-in SDR H.264 benchmark
+ * override. The caller passes the override explicitly so the resolved preset
+ * remains part of render/segment identity instead of being hidden in FFmpeg.
+ */
 export function getEncoderPreset(
   quality: "draft" | "standard" | "high",
   format: "mp4" | "webm" | "mov" = "mp4",
   hdr?: { transfer: HdrTransfer },
   proresProfile: ProresProfile = "4444",
   chromaSubsampling: ChromaSubsampling = "420",
+  x264PresetOverride?: string,
 ): EncoderPreset {
   const base = ENCODER_PRESETS[quality];
   if (format === "webm") {
@@ -195,7 +203,19 @@ export function getEncoderPreset(
       hdr,
     };
   }
-  return { ...base, pixelFormat: chromaSubsampling === "444" ? "yuv444p" : "yuv420p" };
+  if (
+    x264PresetOverride !== undefined &&
+    !(X264_BENCH_PRESETS as readonly string[]).includes(x264PresetOverride)
+  ) {
+    throw new Error(
+      `HF_X264_PRESET must be one of ${X264_BENCH_PRESETS.join(", ")}; got ${JSON.stringify(x264PresetOverride)}`,
+    );
+  }
+  return {
+    ...base,
+    preset: x264PresetOverride ?? base.preset,
+    pixelFormat: chromaSubsampling === "444" ? "yuv444p" : "yuv420p",
+  };
 }
 
 // Re-export GPU utilities so existing consumers that import from chunkEncoder still work.
