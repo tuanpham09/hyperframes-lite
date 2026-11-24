@@ -4948,6 +4948,7 @@ async function executeRenderPipeline(input: {
       encoderHdr,
       job.config.proresProfile,
       job.config.chromaSubsampling,
+      process.env.HF_X264_PRESET,
     );
 
     // CLI overrides (--crf, --video-bitrate) flow through job.config and must
@@ -4969,6 +4970,13 @@ async function executeRenderPipeline(input: {
     }
     const effectiveQuality = job.config.crf ?? preset.quality;
     const effectiveBitrate = job.config.crf != null ? undefined : job.config.videoBitrate;
+    log.info("[Render] Encoder preset resolved", {
+      format: presetFormat,
+      codec: preset.codec,
+      preset: preset.preset,
+      quality: effectiveQuality,
+      x264PresetOverride: process.env.HF_X264_PRESET ?? null,
+    });
 
     // Capture never reads the mix: it starts now, and the first step that needs the mix waits for it.
     const audioReady = audioStage.then((audioResult) => {
