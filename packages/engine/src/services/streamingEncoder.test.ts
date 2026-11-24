@@ -230,6 +230,19 @@ describe("buildStreamingArgs", () => {
     });
   });
 
+
+  describe("software x264 preset forwarding", () => {
+    it.each(["medium", "fast", "faster", "veryfast", "ultrafast"])(
+      "passes the resolved %s preset and CRF unchanged to FFmpeg",
+      (preset) => {
+        const args = buildStreamingArgs({ ...baseSdr, preset, quality: 18 }, "/tmp/out.mp4");
+        expect(args[args.indexOf("-c:v") + 1]).toBe("libx264");
+        expect(args[args.indexOf("-preset") + 1]).toBe(preset);
+        expect(args[args.indexOf("-crf") + 1]).toBe("18");
+      },
+    );
+  });
+
   describe("SDR fallback", () => {
     it("does NOT emit HDR mastering metadata for SDR encodes", () => {
       const args = buildStreamingArgs(baseSdr, "/tmp/out.mp4");
