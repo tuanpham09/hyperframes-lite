@@ -90,22 +90,77 @@ export class RenderExecutionContext {
   }
 
   private async disposeOnce(): Promise<void> {
-    await this.events.flush();
+    const lifecycleProfile = process.env.HF_RENDER_LIFECYCLE_PROFILE === "1";
+    const cleanupStartedAt = Date.now();
+    const cleanupSteps: Array<{ label: string; durationMs: number; error?: string }> = [];
+    let flushError: unknown;
+
+    // A failed progress sink must not prevent browser, server, or process cleanup.
+    // Preserve the previous rejection semantics, but only rethrow after every
+    // registered disposer has had its chance to run.
+    try {
+      await this.events.flush();
+    } catch (error) {
+      flushError = error;
+    }
+
     for (const entry of this.disposers.reverse()) {
       if (!entry.active) continue;
       entry.active = false;
+      const stepStartedAt = Date.now();
+      let stepError: string | undefined;
       try {
         await entry.dispose();
       } catch (error) {
+        stepError = error instanceof Error ? error.message : String(error);
         try {
-          this.logger.debug(`Cleanup failed (${entry.label})`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          this.logger.debug(`Cleanup failed (${entry.label})`, { error: stepError });
         } catch {
           // Cleanup and its diagnostics are both best-effort: neither may mask
           // the render outcome that caused disposal.
         }
+      } finally {
+        if (lifecycleProfile) {
+          cleanupSteps.push({
+            label: entry.label,
+            durationMs: Date.now() - stepStartedAt,
+            ...(stepError ? { error: stepError } : {}),
+          });
+        }
       }
     }
+
+    if (lifecycleProfile) {
+      let activeResources: Record<string, number> | null = null;
+      let activeResourceCount: number | null = null;
+      let resourceSnapshotError: string | undefined;
+      try {
+        const resources = process.getActiveResourcesInfo();
+        activeResourceCount = resources.length;
+        activeResources = resources.reduce<Record<string, number>>((counts, resource) => {
+          counts[resource] = (counts[resource] ?? 0) + 1;
+          return counts;
+        }, {});
+      } catch (error) {
+        resourceSnapshotError = error instanceof Error ? error.message : String(error);
+      }
+
+      try {
+        this.logger.info("[Render lifecycle] cleanup summary", {
+          cleanupDurationMs: Date.now() - cleanupStartedAt,
+          cleanupSteps,
+          activeResourceCount,
+          activeResources,
+          ...(resourceSnapshotError ? { resourceSnapshotError } : {}),
+          ...(flushError
+            ? { eventFlushError: flushError instanceof Error ? flushError.message : String(flushError) }
+            : {}),
+        });
+      } catch {
+        // Diagnostics must never change the render result.
+      }
+    }
+
+    if (flushError) throw flushError;
   }
 }
